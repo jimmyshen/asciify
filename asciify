@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+
+import fcntl
+import imageio
+import numpy as np
+import os
+import scipy.ndimage
+import struct
+import sys
+import termios
+import time
+
+def terminal_size():
+    """Code I stole to get terminal size"""
+    h, w, hp, wp = struct.unpack('HHHH',
+        fcntl.ioctl(0, termios.TIOCGWINSZ,
+        struct.pack('HHHH', 0, 0, 0, 0)))
+    return w, h
+
+if __name__ == '__main__':
+    frames = []
+    scale = " .:-=+*#%@"
+    filename = sys.argv[1]
+
+    reader = imageio.read(filename)
+
+    termw, termh = terminal_size()
+
+    mean = np.mean #scipy.stats.mstats.gmean #np.mean
+
+    while True:
+        for data in reader:
+            start = time.time()
+            data = mean(data, axis=2, dtype=np.float64)
+            data /= 255.0
+            data *= len(scale)
+
+            ph, pw = data.shape
+            sh = (float(termh) / ph)
+            sw = (float(termw) / pw)
+
+            data = scipy.ndimage.zoom(data, [sh, sw]).astype(np.int)
+
+            for row in data:
+                for idx in row:
+                    sys.stdout.write(scale[min(idx, len(scale) - 1)])
+
+                sys.stdout.write('\n')
+
+            sys.stdout.flush()
+            elapsed = time.time() - start
+            if elapsed < 0.05:
+                time.sleep(0.05 - elapsed)
+
+    #while True:
+    #    for frame in frames:
+    #        print frame
+    #        time.sleep(0.05)
+    #        os.system("clear")
