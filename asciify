@@ -1,5 +1,11 @@
 #!/usr/bin/env python
+#
+# asciify toy application for turning image/animation/video to ASCII on console
+#
+# (c) Copyright 2016 Jimmy Shen
+#
 
+import argparse
 import fcntl
 import imageio
 import numpy as np
@@ -17,21 +23,17 @@ def terminal_size():
         struct.pack('HHHH', 0, 0, 0, 0)))
     return w, h
 
-if __name__ == '__main__':
+
+def main_loop(filename, delay=0.05):
     frames = []
     scale = " .:-=+*#%@"
-    filename = sys.argv[1]
-
     reader = imageio.read(filename)
-
     termw, termh = terminal_size()
-
-    mean = np.mean #scipy.stats.mstats.gmean #np.mean
 
     while True:
         for data in reader:
             start = time.time()
-            data = mean(data, axis=2, dtype=np.float64)
+            data = np.mean(data, axis=2, dtype=np.float64)
             data /= 255.0
             data *= len(scale)
 
@@ -43,17 +45,45 @@ if __name__ == '__main__':
 
             for row in data:
                 for idx in row:
-                    sys.stdout.write(scale[min(idx, len(scale) - 1)])
+                    idx = min(idx, len(scale) - 1)      # my math broke somewhere...
+                    sys.stdout.write(scale[idx])
 
                 sys.stdout.write('\n')
 
             sys.stdout.flush()
-            elapsed = time.time() - start
-            if elapsed < 0.05:
-                time.sleep(0.05 - elapsed)
 
-    #while True:
-    #    for frame in frames:
-    #        print frame
-    #        time.sleep(0.05)
-    #        os.system("clear")
+            # dejitter?
+            elapsed = time.time() - start
+            if elapsed < delay:
+                time.sleep(delay - elapsed)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(prog='asciify')
+    parser.add_argument('-d', default='50', type=float, help='delay in milliseconds (default: 50)')
+
+    subparsers = parser.add_subparsers()
+
+    load_cmd = subparsers.add_parser('load', help='loads and loops a file')
+    load_cmd.add_argument('filename', help='image / animation / video to load')
+    load_cmd.set_defaults(mode='load')
+
+    cam_cmd = subparsers.add_parser('cam', help='streams from webcam')
+    cam_cmd.set_defaults(mode='cam')
+
+    help_cmd = subparsers.add_parser('help', help='show help')
+    help_cmd.set_defaults(mode='help')
+
+    args = parser.parse_args()
+
+    delay = abs(args.d) / 1000.0
+
+    if args.mode == 'cam':
+        main_loop('<video0>', delay)
+    elif args.mode == 'load':
+        main_loop(args.filename, delay)
+    elif args.mode == 'help':
+        parser.print_help()
+    else:
+        sys.exit('unsupported mode')
+
